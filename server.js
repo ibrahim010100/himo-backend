@@ -72,6 +72,7 @@ app.use('/api/products', require('./routes/products'));
 app.use('/api/orders',   require('./routes/orders'));
 app.use('/api/stats',    require('./routes/stats'));
 app.use('/api/reviews',  require('./routes/reviews'));
+app.use('/api/promos',   require('./routes/promos'));
 
 // Route de test
 app.get('/', (req, res) => {

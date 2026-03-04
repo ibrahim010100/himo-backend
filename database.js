@@ -100,6 +100,19 @@ async function initDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    // Table promos
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS promos (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        product_id  INT NOT NULL,
+        discount    INT NOT NULL,
+        label       VARCHAR(20) NOT NULL,
+        code        VARCHAR(50) NOT NULL,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
     console.log('✅ Tables créées avec succès!');
 
     // Insérer admin par défaut
