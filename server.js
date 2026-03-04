@@ -113,7 +113,13 @@ async function start() {
     });
 
   } catch (err) {
-    console.error('❌ Erreur démarrage:', err.message);
+    console.error('❌ Erreur démarrage FULL:', err);
+    console.error('❌ Erreur message:', err.message);
+    console.error('❌ Erreur code:', err.code);
+    console.error('DB_HOST:', process.env.DB_HOST);
+    console.error('DB_PORT:', process.env.DB_PORT);
+    console.error('DB_USER:', process.env.DB_USER);
+    console.error('DB_NAME:', process.env.DB_NAME);
     console.error('👉 Vérifiez votre fichier .env (DB_PASSWORD, etc.)');
     process.exit(1);
   }
