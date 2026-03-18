@@ -118,7 +118,7 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS packs (
         id          INT AUTO_INCREMENT PRIMARY KEY,
         name        VARCHAR(255) NOT NULL,
-        description TEXT DEFAULT '',
+        description TEXT,
         type        ENUM('couple','cadeau') NOT NULL DEFAULT 'cadeau',
         price       DECIMAL(10,2) NOT NULL,
         old_price   DECIMAL(10,2) DEFAULT NULL,
