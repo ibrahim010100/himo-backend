@@ -113,6 +113,23 @@ async function initDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
+    // Table packs
+    await conn.execute(`
+      CREATE TABLE IF NOT EXISTS packs (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        name        VARCHAR(255) NOT NULL,
+        description TEXT DEFAULT '',
+        type        ENUM('couple','cadeau') NOT NULL DEFAULT 'cadeau',
+        price       DECIMAL(10,2) NOT NULL,
+        old_price   DECIMAL(10,2) DEFAULT NULL,
+        image_url   VARCHAR(500) DEFAULT '',
+        badge       VARCHAR(100) DEFAULT '',
+        active      TINYINT(1) DEFAULT 1,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+
     console.log('✅ Tables créées avec succès!');
 
     // Insérer admin par défaut
