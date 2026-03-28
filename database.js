@@ -6,16 +6,21 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const pool = new Pool({
-  host:     process.env.DB_HOST,
-  port:     parseInt(process.env.DB_PORT) || 5432,
-  user:     process.env.DB_USER     || 'postgres',
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME     || 'postgres',
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  max: 10,
-  idleTimeoutMillis: 30000,
-});
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      }
+    : {
+        host:     process.env.DB_HOST,
+        port:     parseInt(process.env.DB_PORT) || 5432,
+        user:     process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME || 'postgres',
+        ssl: { rejectUnauthorized: false },
+      }
+);
 
 // Helper — execute avec ? placeholders comme mysql2
 pool.execute = async (sql, params) => {
