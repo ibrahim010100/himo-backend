@@ -33,8 +33,8 @@ router.get('/', verifyToken, async (req, res) => {
       FROM orders
       WHERE created_at >= NOW() - INTERVAL '12 months'
         AND status != 'Annulé'
-      GROUP BY TO_CHAR(created_at, 'YYYY-MM')
-      ORDER BY month ASC
+      GROUP BY 1
+      ORDER BY 1 ASC
     `);
 
     const [salesByCity]  = await pool.execute(`
