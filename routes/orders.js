@@ -35,7 +35,6 @@ async function sendOrderNotification(order, items) {
       </tr>`
     ).join('');
 
-    // Email à l'admin
     await transporter.sendMail({
       from: `"HIMO.WATCHES" <${process.env.EMAIL_USER}>`,
       to:   process.env.EMAIL_USER,
@@ -45,7 +44,6 @@ async function sendOrderNotification(order, items) {
           <h1 style="color:#C9A96E;font-size:28px;letter-spacing:4px">HIMO.WATCHES</h1>
           <h2 style="font-size:20px;margin:24px 0 8px">🔔 Nouvelle Commande!</h2>
           <p style="color:#C9A96E;letter-spacing:2px;font-size:12px">${order.id}</p>
-
           <div style="background:#161616;padding:20px;margin:24px 0;border:1px solid #2a2a2a">
             <h3 style="color:#C9A96E;font-size:12px;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px">Informations Client</h3>
             <p><strong>Nom:</strong> ${order.client_prenom} ${order.client_nom}</p>
@@ -54,7 +52,6 @@ async function sendOrderNotification(order, items) {
             <p><strong>Adresse:</strong> ${order.client_addr}</p>
             <p><strong>Paiement:</strong> ${order.payment}</p>
           </div>
-
           <table style="width:100%;border-collapse:collapse;margin:24px 0">
             <thead>
               <tr style="background:#1E1E1E">
@@ -65,18 +62,14 @@ async function sendOrderNotification(order, items) {
             </thead>
             <tbody>${itemsList}</tbody>
           </table>
-
           <div style="text-align:right;padding:16px 0;border-top:1px solid #C9A96E">
             <span style="font-size:14px;letter-spacing:2px">TOTAL: </span>
             <span style="font-size:28px;color:#C9A96E;font-weight:bold">${order.total.toLocaleString('fr-MA')} MAD</span>
           </div>
-
-          <p style="color:#777;font-size:11px;margin-top:24px">Connectez-vous au Dashboard Admin pour traiter cette commande.</p>
         </div>
       `
     });
 
-    // Email au client (si email dispo)
     if (order.client_email) {
       await transporter.sendMail({
         from: `"HIMO.WATCHES" <${process.env.EMAIL_USER}>`,
@@ -91,7 +84,6 @@ async function sendOrderNotification(order, items) {
             <div style="margin-top:32px;padding:20px;background:#161616;border-left:3px solid #C9A96E">
               <p style="color:#C9A96E;font-size:12px;letter-spacing:2px">TOTAL: <strong style="font-size:22px">${order.total.toLocaleString('fr-MA')} MAD</strong></p>
             </div>
-            <p style="color:#777;font-size:11px;margin-top:24px">© 2024 HIMO.WATCHES · Maroc</p>
           </div>
         `
       });
@@ -100,7 +92,6 @@ async function sendOrderNotification(order, items) {
     console.log('📧 Notifications email envoyées');
   } catch (err) {
     console.error('⚠️  Email non envoyé:', err.message);
-    // Ne pas bloquer la commande si email échoue
   }
 }
 
@@ -108,70 +99,78 @@ async function sendOrderNotification(order, items) {
 // POST /api/orders — Créer une commande
 // ============================================
 router.post('/', async (req, res) => {
-  const conn = await pool.getConnection();
+  // ✅ FIX: استخدام pg client مع BEGIN/COMMIT/ROLLBACK صحيحين
+  const client = await pool.connect();
   try {
-    await conn.beginTransaction();
+    await client.query('BEGIN');
 
-    const { client, items, total } = req.body;
+    const { client: clientData, items, total } = req.body;
 
-    if (!client || !items || !items.length) {
+    if (!clientData || !items || !items.length) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Données manquantes' });
     }
 
-    // Validation
-    if (!client.nom || !client.tel || !client.addr || !client.ville || !client.pay) {
+    if (!clientData.nom || !clientData.tel || !clientData.addr || !clientData.ville || !clientData.pay) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Tous les champs client sont requis' });
     }
-    client.prenom = client.prenom || '';
+    clientData.prenom = clientData.prenom || '';
 
     const orderId = 'CMD-' + Date.now();
 
-    // Insérer la commande
-    await conn.execute(
+    // ✅ FIX: استخدام $1,$2,... بدل ?
+    await client.query(
       `INSERT INTO orders (id, client_nom, client_prenom, client_tel, client_email, client_addr, client_ville, payment, total)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [orderId, client.nom, client.prenom, client.tel, client.email||'', client.addr, client.ville, client.pay, total]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [orderId, clientData.nom, clientData.prenom, clientData.tel, clientData.email||'', clientData.addr, clientData.ville, clientData.pay, total]
     );
 
-    // Insérer les articles
     for (const item of items) {
-      await conn.execute(
+      await client.query(
         `INSERT INTO order_items (order_id, product_id, brand, model, price, quantity)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [orderId, item.id||0, item.brand, item.model, item.price, item.qty||item.quantity||1]
       );
     }
 
-    await conn.commit();
+    await client.query('COMMIT');
 
-    const order = { id:orderId, ...client, client_nom:client.nom, client_prenom:client.prenom,
-                    client_tel:client.tel, client_email:client.email, client_addr:client.addr,
-                    client_ville:client.ville, payment:client.pay, total };
+    const order = {
+      id: orderId,
+      client_nom: clientData.nom,
+      client_prenom: clientData.prenom,
+      client_tel: clientData.tel,
+      client_email: clientData.email,
+      client_addr: clientData.addr,
+      client_ville: clientData.ville,
+      payment: clientData.pay,
+      total
+    };
 
-    // Envoyer notifications (async - ne bloque pas)
     sendOrderNotification(order, items);
 
-    // Notification real-time SSE -> admin panel
     if (global.sendNotification) {
       global.sendNotification({
         type:    'new_order',
         orderId: orderId,
-        client:  `${client.prenom || ''} ${client.nom}`.trim(),
-        tel:     client.tel,
-        ville:   client.ville,
+        client:  `${clientData.prenom || ''} ${clientData.nom}`.trim(),
+        tel:     clientData.tel,
+        ville:   clientData.ville,
         total:   total,
         time:    new Date().toLocaleTimeString('fr-MA'),
       });
     }
 
-    res.json({ success:true, order:{ id:orderId }, message:'Commande confirmée!' });
+    res.json({ success: true, order: { id: orderId }, message: 'Commande confirmée!' });
 
   } catch (err) {
-    await conn.rollback();
+    await client.query('ROLLBACK');
     console.error('Erreur commande:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   } finally {
-    conn.release();
+    // ✅ FIX: release() صحيح مع pg
+    client.release();
   }
 });
 
@@ -180,11 +179,9 @@ router.post('/', async (req, res) => {
 // ============================================
 router.get('/', verifyToken, async (req, res) => {
   try {
-    const [orders] = await pool.execute(
-      'SELECT * FROM orders ORDER BY created_at DESC'
-    );
+    // ✅ FIX: pool.execute يرجع [rows] — نستخدمو مباشرة
+    const [orders] = await pool.execute('SELECT * FROM orders ORDER BY created_at DESC');
 
-    // Récupérer les articles pour chaque commande
     for (const order of orders) {
       const [items] = await pool.execute(
         'SELECT * FROM order_items WHERE order_id = ?',
@@ -193,8 +190,9 @@ router.get('/', verifyToken, async (req, res) => {
       order.items = items;
     }
 
-    res.json({ success:true, orders });
+    res.json({ success: true, orders });
   } catch (err) {
+    console.error('Erreur GET orders:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -216,8 +214,9 @@ router.put('/:id/status', verifyToken, async (req, res) => {
       [status, req.params.id]
     );
 
-    res.json({ success:true, message:`Statut → ${status}` });
+    res.json({ success: true, message: `Statut → ${status}` });
   } catch (err) {
+    console.error('Erreur PUT status:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -230,8 +229,9 @@ router.get('/pending-count', verifyToken, async (req, res) => {
     const [rows] = await pool.execute(
       "SELECT COUNT(*) as count FROM orders WHERE status = 'En attente'"
     );
-    res.json({ success:true, count: rows[0].count });
+    res.json({ success: true, count: rows[0].count });
   } catch (err) {
+    console.error('Erreur pending-count:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
